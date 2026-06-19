@@ -28,10 +28,11 @@ async def health() -> dict:
 async def twiml(request: Request) -> Response:
     form = await request.form()
     to_number = str(form.get("To", ""))
+    from_number = str(form.get("From", ""))
     tenant = resolve(to_number)
     host = SERVICE_HOST or request.headers.get("host", request.url.hostname)
     ws_url = f"wss://{host}/ws"
-    log.info("Chiamata in arrivo su %s → tenant '%s'", to_number, tenant.id)
+    log.info("Chiamata da %s su %s → tenant '%s'", from_number, to_number, tenant.id)
 
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -39,6 +40,7 @@ async def twiml(request: Request) -> Response:
         "  <Connect>\n"
         f'    <Stream url="{ws_url}">\n'
         f'      <Parameter name="tenant_id" value="{tenant.id}"/>\n'
+        f'      <Parameter name="from_number" value="{from_number}"/>\n'
         "    </Stream>\n"
         "  </Connect>\n"
         "</Response>"

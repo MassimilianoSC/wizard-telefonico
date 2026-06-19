@@ -24,6 +24,11 @@ DEFAULT_TENANT_ID = os.getenv("DEFAULT_TENANT_ID", "pizzeria-demo")
 # Valuta di fallback se un listino non la specifica.
 DEFAULT_CURRENCY = "EUR"
 
+# --- Twilio (per l'invio SMS; su Cloud Run vanno passati come env/segreti) ---
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "")
+
 # --- Google / Gemini (Vertex AI) ---
 GCP_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "wizard-telefonico")
 GCP_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")

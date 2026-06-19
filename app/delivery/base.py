@@ -1,7 +1,7 @@
-"""Canali di consegna del preventivo (link).
+"""Canali di consegna del messaggio al cliente.
 
-Nell'MVP solo uno stub che stampa. SMS e WhatsApp (§4.5) sono implementazioni
-successive della stessa interfaccia.
+`StubDelivery` (no-op) per i test locali; `SmsDelivery` (in sms.py) per l'invio
+reale via Twilio. La scelta del canale è una proprietà del tenant.
 """
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from abc import ABC, abstractmethod
 
 class DeliveryChannel(ABC):
     @abstractmethod
-    def send_quote_link(self, to_number: str, link: str, summary: str) -> None:
-        ...
+    def send(self, to_number: str, body: str) -> None:
+        """Invia `body` al numero `to_number`."""
 
 
 class StubDelivery(DeliveryChannel):
-    """No-op per l'MVP: non invia nulla, registra l'intento a console."""
+    """No-op per l'MVP/locale: non invia nulla, stampa a console."""
 
-    def send_quote_link(self, to_number: str, link: str, summary: str) -> None:
-        print(f"[delivery:stub] -> {to_number}: {link}\n{summary}")
+    def send(self, to_number: str, body: str) -> None:
+        print(f"[delivery:stub] -> {to_number}:\n{body}")

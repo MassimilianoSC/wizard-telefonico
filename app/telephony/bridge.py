@@ -1,19 +1,16 @@
 """Ponte Twilio Media Streams <-> Gemini Live API.
 
 Flusso di una chiamata:
-1. Twilio apre il WebSocket e invia `start` (con streamSid + tenant_id passato dal
-   TwiML come custom parameter). Da lì risolviamo tenant, motore e prompt.
+1. Twilio apre il WebSocket e invia `start` (con streamSid + tenant_id + from_number
+   passati dal TwiML come custom parameter). Da lì risolviamo tenant, motore, prompt
+   e canale di consegna.
 2. Apriamo la sessione Gemini Live (audio it-IT, voce, tool, trascrizioni) e
    iniettiamo un turno iniziale così l'agente saluta per primo.
-3. Tre loop concorrenti:
-   - Twilio -> Gemini: u-law 8k -> PCM16 8k -> 16k -> send_realtime_input.
-   - Gemini -> Twilio: PCM16 24k -> 8k -> u-law -> base64 -> media. Le function
-     call vengono eseguite sul motore deterministico; `interrupted` -> `clear`.
-   - Watchdog di silenzio (Blocco B): se nessuno parla per troppo tempo, sollecita
-     il cliente e, se il silenzio prosegue, congeda e chiude.
-4. Chiusura: `end_call` (o il watchdog) imposta `closing`; finita la frase di
-   congedo inviamo un `mark`, e quando Twilio ce lo rimanda chiudiamo il WebSocket
-   (con <Connect> la chiamata termina).
+3. Tre loop concorrenti: Twilio->Gemini, Gemini->Twilio, watchdog di silenzio.
+4. Chiusura: `end_call` (o il watchdog) imposta `closing`; alla chiusura per
+   `end_call` inviamo al cliente (caller ID) un SMS con il riepilogo dell'ultimo
+   preventivo. Finita la frase di congedo inviamo un `mark`; quando Twilio ce lo
+   rimanda chiudiamo il WebSocket (con <Connect> la chiamata termina).
 5. Diagnostica: logghiamo le trascrizioni di ciò che l'utente dice e l'agente risponde.
 """
 from __future__ import annotations
@@ -46,10 +43,11 @@ from app.agent.runtime import (
     TOOLS,
     build_system_instruction,
     dispatch_tool_call,
+    format_order_sms,
 )
 from app.platform.logging import get_logger
 from app.telephony.audio import Resampler, pcm16_to_ulaw, ulaw_to_pcm16
-from app.tenancy.registry import build_engine, get_tenant
+from app.tenancy.registry import build_delivery, build_engine, get_tenant
 
 log = get_logger("bridge")
 
@@ -83,22 +81,26 @@ async def _send_trigger(session, text: str) -> None:
     )
 
 
-async def _wait_for_start(twilio_ws) -> tuple[str, str]:
-    """Legge i messaggi finché arriva `start`; ritorna (stream_sid, tenant_id)."""
+async def _wait_for_start(twilio_ws) -> tuple[str, str, str]:
+    """Legge i messaggi finché arriva `start`; ritorna (stream_sid, tenant_id, from_number)."""
     while True:
         msg = json.loads(await twilio_ws.receive_text())
         if msg.get("event") == "start":
             start = msg["start"]
-            stream_sid = start["streamSid"]
-            tenant_id = start.get("customParameters", {}).get("tenant_id", DEFAULT_TENANT_ID)
-            return stream_sid, tenant_id
+            params = start.get("customParameters", {})
+            return (
+                start["streamSid"],
+                params.get("tenant_id", DEFAULT_TENANT_ID),
+                params.get("from_number", ""),
+            )
 
 
 async def run_bridge(twilio_ws) -> None:
-    stream_sid, tenant_id = await _wait_for_start(twilio_ws)
+    stream_sid, tenant_id, from_number = await _wait_for_start(twilio_ws)
     tenant = get_tenant(tenant_id)
     engine = build_engine(tenant)
-    log.info("Chiamata per tenant '%s' (stream %s)", tenant.id, stream_sid)
+    delivery = build_delivery(tenant)
+    log.info("Chiamata per tenant '%s' da %s (stream %s)", tenant.id, from_number, stream_sid)
 
     config = _live_config(build_system_instruction(tenant, engine))
 
@@ -110,6 +112,7 @@ async def run_bridge(twilio_ws) -> None:
     goodbye_sent = False
     last_activity = time.monotonic()   # ultima attività vocale (utente o agente)
     prompted_silence = False           # sollecito di silenzio già inviato
+    last_quote: dict | None = None     # ultimo preventivo calcolato, per l'SMS
 
     async with _client.aio.live.connect(model=GEMINI_MODEL, config=config) as session:
         await _send_trigger(session, GREETING_TRIGGER)
@@ -132,7 +135,7 @@ async def run_bridge(twilio_ws) -> None:
                     return
 
         async def gemini_to_twilio() -> None:
-            nonlocal closing, goodbye_sent, last_activity, prompted_silence
+            nonlocal closing, goodbye_sent, last_activity, prompted_silence, last_quote
             user_parts: list[str] = []
             agent_parts: list[str] = []
             while True:
@@ -141,10 +144,22 @@ async def run_bridge(twilio_ws) -> None:
                     if tool_call and tool_call.function_calls:
                         replies = []
                         for fc in tool_call.function_calls:
-                            log.info("TOOL CALL: %s(%s)", fc.name, dict(fc.args or {}))
-                            result = dispatch_tool_call(fc.name, dict(fc.args or {}), engine)
-                            if fc.name == "end_call":
+                            args = dict(fc.args or {})
+                            log.info("TOOL CALL: %s(%s)", fc.name, args)
+                            result = dispatch_tool_call(fc.name, args, engine)
+                            if fc.name == "calcola_preventivo" and "total" in result:
+                                last_quote = result
+                            elif fc.name == "end_call":
                                 closing = True
+                                if from_number and last_quote:
+                                    body = format_order_sms(last_quote, tenant.display_name)
+                                    try:
+                                        await asyncio.to_thread(delivery.send, from_number, body)
+                                        log.info("SMS riepilogo inviato a %s", from_number)
+                                        result = {"status": "ok", "sms": "inviato"}
+                                    except Exception:
+                                        log.exception("Invio SMS fallito")
+                                        result = {"status": "ok", "sms": "fallito"}
                             replies.append(
                                 types.FunctionResponse(id=fc.id, name=fc.name, response=result)
                             )

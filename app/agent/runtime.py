@@ -129,3 +129,15 @@ def dispatch_tool_call(name: str, args: dict, engine: PriceEngine) -> dict:
             for line in quote.lines
         ],
     }
+
+
+def format_order_sms(quote_result: dict, business_name: str) -> str:
+    """Costruisce il testo dell'SMS di riepilogo dal risultato di `calcola_preventivo`."""
+    currency = quote_result.get("currency", "EUR")
+    righe = [
+        f"- {float(line['quantity']):g}x {line['description']}: {float(line['subtotal']):.2f} {currency}"
+        for line in quote_result.get("lines", [])
+    ]
+    totale = float(quote_result.get("total", 0))
+    corpo = "\n".join(righe)
+    return f"{business_name} - Riepilogo ordine:\n{corpo}\nTotale: {totale:.2f} {currency}\nGrazie!"

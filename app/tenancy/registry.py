@@ -9,6 +9,8 @@ import json
 from functools import lru_cache
 
 from app.config import DEFAULT_TENANT_ID, TENANTS_DIR
+from app.delivery.base import DeliveryChannel, StubDelivery
+from app.delivery.sms import SmsDelivery
 from app.pricing.engine import PriceEngine
 from app.pricing.pizzeria import PizzeriaEngine
 from app.tenancy.models import Tenant
@@ -66,3 +68,11 @@ def build_engine(tenant: Tenant) -> PriceEngine:
     except KeyError:
         raise ValueError(f"engine_type non supportato: {tenant.engine_type!r}")
     return engine_cls.from_catalog(tenant.catalog_path)
+
+
+def build_delivery(tenant: Tenant) -> DeliveryChannel:
+    """Istanzia il canale di consegna del tenant (SMS reale o stub)."""
+    channel = tenant.delivery_channels[0] if tenant.delivery_channels else "stub"
+    if channel == "sms":
+        return SmsDelivery()
+    return StubDelivery()
