@@ -3,12 +3,16 @@
 Flusso di una chiamata:
 1. Twilio apre il WebSocket e invia `start` (con streamSid + tenant_id passato dal
    TwiML come custom parameter). Da lì risolviamo tenant, motore e prompt.
-2. Apriamo la sessione Gemini Live (audio it-IT, voce, tool `calcola_preventivo`).
+2. Apriamo la sessione Gemini Live (audio it-IT, voce, tool) e iniettiamo un turno
+   iniziale così l'agente saluta per primo (#1).
 3. Due loop concorrenti:
    - Twilio -> Gemini: u-law 8k -> PCM16 8k -> 16k -> send_realtime_input.
    - Gemini -> Twilio: PCM16 24k -> 8k -> u-law -> base64 -> media. Le function
      call vengono eseguite sul motore deterministico; `interrupted` -> `clear`
      (barge-in).
+4. Chiusura intenzionale (#2): se l'agente chiama `end_call`, lo lasciamo finire la
+   frase di congedo, poi inviamo un `mark` a Twilio; quando Twilio ce lo rimanda
+   (= audio riprodotto) chiudiamo il WebSocket e con <Connect> la chiamata termina.
 """
 from __future__ import annotations
 
@@ -30,12 +34,20 @@ from app.config import (
     TWILIO_RATE,
     DEFAULT_TENANT_ID,
 )
-from app.agent.runtime import QUOTE_TOOL, build_system_instruction, dispatch_tool_call
+from app.agent.runtime import (
+    GREETING_TRIGGER,
+    TOOLS,
+    build_system_instruction,
+    dispatch_tool_call,
+)
 from app.platform.logging import get_logger
 from app.telephony.audio import Resampler, pcm16_to_ulaw, ulaw_to_pcm16
 from app.tenancy.registry import build_engine, get_tenant
 
 log = get_logger("bridge")
+
+# Nome del mark usato per sapere quando l'audio di congedo è stato riprodotto.
+_GOODBYE_MARK = "goodbye"
 
 # Client Vertex AI condiviso (usa ADC; nessuna chiamata di rete all'init).
 _client = genai.Client(vertexai=True, project=GCP_PROJECT, location=GCP_LOCATION)
@@ -51,7 +63,7 @@ def _live_config(system_instruction: str) -> types.LiveConnectConfig:
                 prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=GEMINI_VOICE)
             ),
         ),
-        tools=[{"function_declarations": [QUOTE_TOOL]}],
+        tools=[{"function_declarations": TOOLS}],
     )
 
 
@@ -78,7 +90,16 @@ async def run_bridge(twilio_ws) -> None:
     up = Resampler(TWILIO_RATE, GEMINI_IN_RATE)      # 8k -> 16k (verso Gemini)
     down = Resampler(GEMINI_OUT_RATE, TWILIO_RATE)   # 24k -> 8k (verso Twilio)
 
+    # Stato condiviso per la chiusura intenzionale.
+    closing = False
+    goodbye_sent = False
+
     async with _client.aio.live.connect(model=GEMINI_MODEL, config=config) as session:
+        # #1 — turno iniziale: l'agente saluta per primo.
+        await session.send_client_content(
+            turns=types.Content(role="user", parts=[types.Part.from_text(text=GREETING_TRIGGER)]),
+            turn_complete=True,
+        )
 
         async def twilio_to_gemini() -> None:
             while True:
@@ -90,22 +111,28 @@ async def run_bridge(twilio_ws) -> None:
                     await session.send_realtime_input(
                         media=types.Blob(data=pcm16, mime_type=f"audio/pcm;rate={GEMINI_IN_RATE}")
                     )
+                elif event == "mark":
+                    # Twilio ci rimanda il mark quando l'audio di congedo è finito.
+                    if msg.get("mark", {}).get("name") == _GOODBYE_MARK:
+                        await twilio_ws.close()
+                        return
                 elif event == "stop":
                     return
 
         async def gemini_to_twilio() -> None:
+            nonlocal closing, goodbye_sent
             while True:
                 async for response in session.receive():
                     tool_call = getattr(response, "tool_call", None)
                     if tool_call and tool_call.function_calls:
-                        replies = [
-                            types.FunctionResponse(
-                                id=fc.id,
-                                name=fc.name,
-                                response=dispatch_tool_call(fc.name, dict(fc.args or {}), engine),
+                        replies = []
+                        for fc in tool_call.function_calls:
+                            result = dispatch_tool_call(fc.name, dict(fc.args or {}), engine)
+                            if fc.name == "end_call":
+                                closing = True
+                            replies.append(
+                                types.FunctionResponse(id=fc.id, name=fc.name, response=result)
                             )
-                            for fc in tool_call.function_calls
-                        ]
                         await session.send_tool_response(function_responses=replies)
                         continue
 
@@ -122,11 +149,24 @@ async def run_bridge(twilio_ws) -> None:
                         )
 
                     server_content = getattr(response, "server_content", None)
-                    if server_content and getattr(server_content, "interrupted", False):
-                        # Barge-in: svuota l'audio in coda su Twilio.
-                        await twilio_ws.send_text(
-                            json.dumps({"event": "clear", "streamSid": stream_sid})
-                        )
+                    if server_content:
+                        if getattr(server_content, "interrupted", False):
+                            # Barge-in: svuota l'audio in coda su Twilio.
+                            await twilio_ws.send_text(
+                                json.dumps({"event": "clear", "streamSid": stream_sid})
+                            )
+                        if getattr(server_content, "turn_complete", False) and closing and not goodbye_sent:
+                            # Congedo finito: chiedi a Twilio conferma di riproduzione.
+                            goodbye_sent = True
+                            await twilio_ws.send_text(
+                                json.dumps(
+                                    {
+                                        "event": "mark",
+                                        "streamSid": stream_sid,
+                                        "mark": {"name": _GOODBYE_MARK},
+                                    }
+                                )
+                            )
 
         t_in = asyncio.create_task(twilio_to_gemini())
         t_out = asyncio.create_task(gemini_to_twilio())

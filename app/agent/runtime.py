@@ -44,6 +44,26 @@ QUOTE_TOOL = {
     },
 }
 
+# Tool per chiudere la chiamata quando il compito è finito.
+END_CALL_TOOL = {
+    "name": "end_call",
+    "description": (
+        "Termina la telefonata quando la conversazione è conclusa (ordine completato "
+        "e cliente salutato, oppure il cliente vuole chiudere). PRIMA di chiamarla, "
+        "congeda il cliente con una breve frase di saluto."
+    ),
+    "parameters": {"type": "object", "properties": {}},
+}
+
+# Tutti i tool esposti al modello.
+TOOLS = [QUOTE_TOOL, END_CALL_TOOL]
+
+# Messaggio iniettato all'avvio per far salutare l'agente per primo.
+GREETING_TRIGGER = (
+    "[La chiamata è appena iniziata. Saluta per primo il cliente, presentati in una "
+    "frase come assistente vocale automatico, e chiedi cosa desidera ordinare.]"
+)
+
 
 def build_system_instruction(tenant: Tenant, engine: PriceEngine) -> str:
     """Prompt del tenant + elenco del listino coi codici validi per il tool."""
@@ -68,6 +88,8 @@ def dispatch_tool_call(name: str, args: dict, engine: PriceEngine) -> dict:
     non a listino, restituisce un errore parlante così l'agente chiede invece di
     inventare (§4.3 del piano).
     """
+    if name == "end_call":
+        return {"status": "ok"}
     if name != "calcola_preventivo":
         return {"error": f"Funzione sconosciuta: {name}"}
 
