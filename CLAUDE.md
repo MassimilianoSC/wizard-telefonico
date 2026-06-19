@@ -50,18 +50,30 @@ WhatsApp) · Gemini Live API · deploy su Google Cloud Run.
 GitHub** (privato): https://github.com/MassimilianoSC/wizard-telefonico (remote
 `origin`). Test 4/4 verdi in locale.
 
-**Fase 2 in corso.** GCP: progetto `wizard-telefonico`, Vertex AI abilitata, billing
-personale (temporaneo). **Twilio: trial attivo, numero `+16892250454` (USA, Voice+SMS)
-agganciato al tenant pizzeria-demo, cellulare verificato, SID/Token nel `.env`.**
-gcloud installato; **ngrok e dipendenze Python da installare**. Demo ufficiale di
-riferimento individuata (vedi memoria `ref-demo-gemini-live-telephony`).
-Prossimo: cablare il ponte Twilio↔Gemini partendo dalla demo ufficiale Google.
+**Fase 2 — codice completo e deployato; manca solo l'accesso pubblico.**
+Ponte Twilio↔Gemini scritto e validato (motore 4/4, smoke test Gemini Live OK).
+App **deployata su Cloud Run**: `https://wizard-telefonico-850927676767.us-central1.run.app`
+(region us-central1). Twilio: trial, numero `+16892250454`, SID/Token nel `.env`.
 
-## TODO (immediato) — Fase 2: "far squillare"
-- [ ] Installare ngrok (+ authtoken di account gratuito)
-- [ ] `gcloud auth application-default login` + set-quota-project wizard-telefonico
-- [ ] Installare dipendenze Python (fastapi, uvicorn, twilio, google-genai, python-samplerate, websockets)
-- [ ] Portare la demo ufficiale "gemini-live-telephony-app" come base dell'idraulica
-- [ ] Avviare uvicorn + ngrok → puntare il webhook Twilio (`/twiml`) all'URL ngrok
-- [ ] Chiamare +16892250454 → l'agente risponde (numero che squilla, §7)
-- [ ] Poi: innestare il function calling verso il motore prezzi (nostro IP)
+**Blocco (amministrativo, non tecnico):** la org policy aziendale (Domain Restricted
+Sharing) vieta `allUsers` → il servizio risponde 403 agli anonimi, quindi Twilio non
+lo raggiunge. Anche i quick tunnel Cloudflare non instradano dalla rete aziendale
+(vedi memoria `vincoli-rete-aziendale-gcp`).
+
+**Per sbloccare:** admin GCP che consenta `allUsers` (run.invoker) / eccezione alla
+policy (soluzione di produzione), oppure rete non aziendale (hotspot) + tunnel per i
+test. Test telefonico end-to-end ancora da fare.
+
+## TODO (immediato) — sbloccare l'accesso pubblico, poi testare
+- [ ] **Admin GCP**: eccezione alla org policy `iam.allowedPolicyMemberDomains`
+      per consentire `allUsers` con ruolo `run.invoker` sul servizio `wizard-telefonico`
+      (oppure l'admin esegue il binding). → rende pubblico l'endpoint per Twilio.
+- [ ] In alternativa, per test immediati: rete non aziendale (hotspot) + tunnel.
+- [ ] Test telefonico E2E: chiamare +16892250454 → agente pizzeria → ordine → totale.
+- [ ] Verificare function calling/readback, poi consegna link via SMS.
+
+## Come riprendere (servizi locali)
+- Server locale per i test via tunnel: `PYTHONPATH=. .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8787`
+  (la porta 8000 è occupata da un altro programma dell'utente → usare 8787).
+- Webhook Twilio: `PYTHONPATH=. .venv/Scripts/python.exe scripts/set_twilio_webhook.py <https://host>`
+- Smoke test Gemini: `PYTHONPATH=. .venv/Scripts/python.exe scripts/smoke_live.py`
