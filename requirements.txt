@@ -1,0 +1,11 @@
+# MVP — motore prezzi: pure Python, nessuna dipendenza runtime.
+# Solo per i test:
+pytest>=8.0
+
+# --- Da abilitare nelle fasi successive (telefonia + voce) ---
+# fastapi
+# uvicorn[standard]
+# websockets
+# google-genai
+# google-adk
+# twilio
