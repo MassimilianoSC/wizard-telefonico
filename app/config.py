@@ -46,6 +46,7 @@ TWILIO_RATE = 8000      # G.711 u-law in/out verso Twilio
 GEMINI_IN_RATE = 16000  # PCM16 atteso da Gemini in ingresso
 GEMINI_OUT_RATE = 24000  # PCM16 prodotto da Gemini in uscita
 
-# --- Timeout di silenzio (secondi) — tarabili via env senza ricompilare ---
-SILENCE_PROMPT_S = float(os.getenv("SILENCE_PROMPT_S", "10"))   # sollecito dopo N s di silenzio
-SILENCE_HANGUP_S = float(os.getenv("SILENCE_HANGUP_S", "22"))   # chiusura dopo ulteriore silenzio
+# --- Timeout di silenzio e anti-stallo (secondi) — tarabili via env ---
+SILENCE_PROMPT_S = float(os.getenv("SILENCE_PROMPT_S", "16"))   # sollecito se il CLIENTE tace (dopo che l'agente ha finito)
+SILENCE_HANGUP_S = float(os.getenv("SILENCE_HANGUP_S", "30"))   # chiusura dopo ulteriore silenzio
+STALL_NUDGE_S = float(os.getenv("STALL_NUDGE_S", "9"))          # nudge se l'AGENTE non risponde dopo che il cliente ha parlato

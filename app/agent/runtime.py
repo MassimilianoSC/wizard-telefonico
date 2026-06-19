@@ -77,6 +77,12 @@ SILENCE_HANGUP_TRIGGER = (
     "[Il cliente non risponde da troppo tempo. Salutalo gentilmente e concludi la chiamata.]"
 )
 
+# Nudge anti-stallo (Blocco fix #3): l'agente non ha risposto, va fatto ripartire.
+STALL_NUDGE_TRIGGER = (
+    "[C'è stato un ritardo nella tua risposta. Riprendi SUBITO: rispondi all'ultima cosa "
+    "detta dal cliente, oppure chiedi gentilmente di ripetere. Non restare in silenzio.]"
+)
+
 
 def build_system_instruction(tenant: Tenant, engine: PriceEngine) -> str:
     """Prompt del tenant + listino (raggruppato per categoria) coi codici validi."""
