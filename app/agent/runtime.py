@@ -44,13 +44,17 @@ QUOTE_TOOL = {
     },
 }
 
-# Tool per chiudere la chiamata quando il compito è finito.
+# Tool per chiudere la chiamata. Condizioni STRETTE: l'agente non deve chiudere
+# per pause, silenzi o assensi isolati (causa principale di chiusure premature).
 END_CALL_TOOL = {
     "name": "end_call",
     "description": (
-        "Termina la telefonata quando la conversazione è conclusa (ordine completato "
-        "e cliente salutato, oppure il cliente vuole chiudere). PRIMA di chiamarla, "
-        "congeda il cliente con una breve frase di saluto."
+        "Termina la telefonata. USA QUESTA FUNZIONE SOLO se TUTTE queste condizioni "
+        "sono vere: (1) hai già comunicato il totale dell'ordine, OPPURE il cliente ha "
+        "detto esplicitamente di voler chiudere; (2) hai chiesto 'Desidera altro?' e il "
+        "cliente ha risposto di no; (3) ti sei congedato con una frase di saluto. "
+        "NON chiamarla MAI dopo una semplice pausa, un silenzio, un 'ok' o un 'sì' "
+        "isolato, né se non sei sicuro che il cliente abbia finito."
     ),
     "parameters": {"type": "object", "properties": {}},
 }
