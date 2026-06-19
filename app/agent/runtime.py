@@ -68,6 +68,15 @@ GREETING_TRIGGER = (
     "frase come assistente vocale automatico, e chiedi cosa desidera ordinare.]"
 )
 
+# Messaggi iniettati dal watchdog di silenzio (Blocco B).
+SILENCE_PROMPT_TRIGGER = (
+    "[Il cliente è in silenzio da qualche secondo. Chiedi con garbo se è ancora in "
+    "linea o se desidera altro. NON chiudere la chiamata.]"
+)
+SILENCE_HANGUP_TRIGGER = (
+    "[Il cliente non risponde da troppo tempo. Salutalo gentilmente e concludi la chiamata.]"
+)
+
 
 def build_system_instruction(tenant: Tenant, engine: PriceEngine) -> str:
     """Prompt del tenant + elenco del listino coi codici validi per il tool."""

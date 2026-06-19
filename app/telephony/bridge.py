@@ -4,23 +4,24 @@ Flusso di una chiamata:
 1. Twilio apre il WebSocket e invia `start` (con streamSid + tenant_id passato dal
    TwiML come custom parameter). Da lì risolviamo tenant, motore e prompt.
 2. Apriamo la sessione Gemini Live (audio it-IT, voce, tool, trascrizioni) e
-   iniettiamo un turno iniziale così l'agente saluta per primo (#1).
-3. Due loop concorrenti:
+   iniettiamo un turno iniziale così l'agente saluta per primo.
+3. Tre loop concorrenti:
    - Twilio -> Gemini: u-law 8k -> PCM16 8k -> 16k -> send_realtime_input.
    - Gemini -> Twilio: PCM16 24k -> 8k -> u-law -> base64 -> media. Le function
-     call vengono eseguite sul motore deterministico; `interrupted` -> `clear`
-     (barge-in).
-4. Chiusura intenzionale: se l'agente chiama `end_call`, lo lasciamo finire la
-   frase di congedo, poi inviamo un `mark` a Twilio; quando Twilio ce lo rimanda
-   (= audio riprodotto) chiudiamo il WebSocket e con <Connect> la chiamata termina.
-5. Diagnostica: logghiamo le trascrizioni di ciò che l'utente dice e di ciò che
-   l'agente risponde (per capire i casi in cui "non capisce").
+     call vengono eseguite sul motore deterministico; `interrupted` -> `clear`.
+   - Watchdog di silenzio (Blocco B): se nessuno parla per troppo tempo, sollecita
+     il cliente e, se il silenzio prosegue, congeda e chiude.
+4. Chiusura: `end_call` (o il watchdog) imposta `closing`; finita la frase di
+   congedo inviamo un `mark`, e quando Twilio ce lo rimanda chiudiamo il WebSocket
+   (con <Connect> la chiamata termina).
+5. Diagnostica: logghiamo le trascrizioni di ciò che l'utente dice e l'agente risponde.
 """
 from __future__ import annotations
 
 import asyncio
 import base64
 import json
+import time
 
 from google import genai
 from google.genai import types
@@ -33,11 +34,15 @@ from app.config import (
     GEMINI_MODEL,
     GEMINI_OUT_RATE,
     GEMINI_VOICE,
+    SILENCE_HANGUP_S,
+    SILENCE_PROMPT_S,
     TWILIO_RATE,
     DEFAULT_TENANT_ID,
 )
 from app.agent.runtime import (
     GREETING_TRIGGER,
+    SILENCE_HANGUP_TRIGGER,
+    SILENCE_PROMPT_TRIGGER,
     TOOLS,
     build_system_instruction,
     dispatch_tool_call,
@@ -48,7 +53,6 @@ from app.tenancy.registry import build_engine, get_tenant
 
 log = get_logger("bridge")
 
-# Nome del mark usato per sapere quando l'audio di congedo è stato riprodotto.
 _GOODBYE_MARK = "goodbye"
 
 # Client Vertex AI condiviso (usa ADC; nessuna chiamata di rete all'init).
@@ -66,9 +70,16 @@ def _live_config(system_instruction: str) -> types.LiveConnectConfig:
             ),
         ),
         tools=[{"function_declarations": TOOLS}],
-        # Diagnostica: trascrizioni di input (cliente) e output (agente).
         input_audio_transcription=types.AudioTranscriptionConfig(),
         output_audio_transcription=types.AudioTranscriptionConfig(),
+    )
+
+
+async def _send_trigger(session, text: str) -> None:
+    """Inietta un turno 'di sistema' per far reagire l'agente (saluto, sollecito...)."""
+    await session.send_client_content(
+        turns=types.Content(role="user", parts=[types.Part.from_text(text=text)]),
+        turn_complete=True,
     )
 
 
@@ -91,20 +102,17 @@ async def run_bridge(twilio_ws) -> None:
 
     config = _live_config(build_system_instruction(tenant, engine))
 
-    # Resampler con stato, uno per direzione.
     up = Resampler(TWILIO_RATE, GEMINI_IN_RATE)      # 8k -> 16k (verso Gemini)
     down = Resampler(GEMINI_OUT_RATE, TWILIO_RATE)   # 24k -> 8k (verso Twilio)
 
-    # Stato condiviso per la chiusura intenzionale.
+    # Stato condiviso.
     closing = False
     goodbye_sent = False
+    last_activity = time.monotonic()   # ultima attività vocale (utente o agente)
+    prompted_silence = False           # sollecito di silenzio già inviato
 
     async with _client.aio.live.connect(model=GEMINI_MODEL, config=config) as session:
-        # Turno iniziale: l'agente saluta per primo.
-        await session.send_client_content(
-            turns=types.Content(role="user", parts=[types.Part.from_text(text=GREETING_TRIGGER)]),
-            turn_complete=True,
-        )
+        await _send_trigger(session, GREETING_TRIGGER)
 
         async def twilio_to_gemini() -> None:
             while True:
@@ -124,7 +132,7 @@ async def run_bridge(twilio_ws) -> None:
                     return
 
         async def gemini_to_twilio() -> None:
-            nonlocal closing, goodbye_sent
+            nonlocal closing, goodbye_sent, last_activity, prompted_silence
             user_parts: list[str] = []
             agent_parts: list[str] = []
             while True:
@@ -144,6 +152,7 @@ async def run_bridge(twilio_ws) -> None:
                         continue
 
                     if getattr(response, "data", None):
+                        last_activity = time.monotonic()
                         ulaw = pcm16_to_ulaw(down.process(response.data))
                         await twilio_ws.send_text(
                             json.dumps(
@@ -157,16 +166,17 @@ async def run_bridge(twilio_ws) -> None:
 
                     server_content = getattr(response, "server_content", None)
                     if server_content:
-                        # Accumula le trascrizioni per loggarle a fine turno.
                         it = getattr(server_content, "input_transcription", None)
                         if it and getattr(it, "text", None):
                             user_parts.append(it.text)
+                            last_activity = time.monotonic()
+                            prompted_silence = False  # il cliente ha parlato
                         ot = getattr(server_content, "output_transcription", None)
                         if ot and getattr(ot, "text", None):
                             agent_parts.append(ot.text)
+                            last_activity = time.monotonic()
 
                         if getattr(server_content, "interrupted", False):
-                            # Barge-in: svuota l'audio in coda su Twilio.
                             await twilio_ws.send_text(
                                 json.dumps({"event": "clear", "streamSid": stream_sid})
                             )
@@ -190,9 +200,27 @@ async def run_bridge(twilio_ws) -> None:
                                     )
                                 )
 
+        async def silence_watchdog() -> None:
+            nonlocal closing, prompted_silence
+            while True:
+                await asyncio.sleep(1)
+                if closing:
+                    continue
+                idle = time.monotonic() - last_activity
+                if idle >= SILENCE_HANGUP_S:
+                    log.info("Silenzio prolungato (%.0fs): congedo e chiusura", idle)
+                    closing = True
+                    await _send_trigger(session, SILENCE_HANGUP_TRIGGER)
+                elif idle >= SILENCE_PROMPT_S and not prompted_silence:
+                    log.info("Silenzio (%.0fs): sollecito il cliente", idle)
+                    prompted_silence = True
+                    await _send_trigger(session, SILENCE_PROMPT_TRIGGER)
+
+        watchdog = asyncio.create_task(silence_watchdog())
         t_in = asyncio.create_task(twilio_to_gemini())
         t_out = asyncio.create_task(gemini_to_twilio())
         done, pending = await asyncio.wait({t_in, t_out}, return_when=asyncio.FIRST_COMPLETED)
+        watchdog.cancel()
         for task in pending:
             task.cancel()
         for task in done:
