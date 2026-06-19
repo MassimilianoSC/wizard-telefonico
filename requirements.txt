@@ -1,11 +1,17 @@
-# MVP — motore prezzi: pure Python, nessuna dipendenza runtime.
-# Solo per i test:
+# Wizard vocale telefonico — dipendenze
+
+# Test
 pytest>=8.0
 
-# --- Da abilitare nelle fasi successive (telefonia + voce) ---
-# fastapi
-# uvicorn[standard]
-# websockets
-# google-genai
-# google-adk
-# twilio
+# Backend / API (Fase 2)
+fastapi>=0.137
+uvicorn>=0.49
+websockets>=16.0
+python-dotenv>=1.2
+
+# Telefonia + voce (Fase 2)
+twilio>=9.10
+google-genai>=2.9
+
+# Audio: resampling / mu-law <-> PCM (libreria definitiva in fase di scelta)
+numpy>=2.4
