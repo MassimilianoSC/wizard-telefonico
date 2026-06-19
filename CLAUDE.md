@@ -42,14 +42,18 @@ WhatsApp) · Gemini Live API · deploy su Google Cloud Run.
 7. ⬜ Arricchire il listino pizzeria di test: varianti/aggiunte, formati, combo
    (stressa meccaniche vicine all'edilizia; additivo, non rompe l'E2E) — DOPO il punto 6
 8. ⬜ Riunione committente → sostituire pizzeria con tenant edilizia reale
-9. ⬜ Hardening produzione (errori, logging, sicurezza, multitenant pieno)
+9. ⬜ Hardening produzione (errori, logging, sicurezza, multitenant pieno,
+   billing su account aziendale)
 
 ## Stato attuale
-**Fase 1 completata.** Scaffold creato, committato (branch `main`) e **pushato su
-GitHub** (privato): https://github.com/MassimilianoSC/wizard-telefonico — remote
-`origin`. Il motore prezzi pizzeria gira e supera i test (4/4) in locale, **senza**
-telefonia né Gemini. Prossimo passo: Fase 2 (telefonia), che richiede config cloud
-(numero Twilio + Gemini abilitato).
+**Fase 1 completata.** Scaffold + motore prezzi pizzeria, committato e **pushato su
+GitHub** (privato): https://github.com/MassimilianoSC/wizard-telefonico (remote
+`origin`). Test 4/4 verdi in locale.
+
+**Fase 2 in corso (config cloud).** Progetto GCP `wizard-telefonico` creato sotto
+org **hqe.it**, **Vertex AI API abilitata**. Billing = account personale dell'utente
+(carta propria): OK per l'MVP, **da spostare su billing aziendale in produzione**.
+Prossimi passi: account Twilio + numero di test, poi credenziali/codice telefonia.
 
 ## TODO (immediato)
 - [ ] Decidere se procedere con la config cloud (Twilio + Google Cloud) per la Fase 2
