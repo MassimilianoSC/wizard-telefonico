@@ -6,7 +6,7 @@
 ## Scopo
 Agente vocale che il cliente finale chiama al telefono: lo guida nella scelta
 del prodotto, raccoglie i parametri di prezzo, calcola un **preventivo esatto**
-con codice deterministico (mai l'LLM) e glielo recapita via messaggio (link).
+con codice deterministico (mai l'LLM) e glielo recapita via messaggio.
 Prodotto da portare sul mercato, venduto a più committenti.
 
 Documento di riferimento completo: [piano-wizard-vocale.md](piano-wizard-vocale.md).
@@ -17,7 +17,7 @@ Documento di riferimento completo: [piano-wizard-vocale.md](piano-wizard-vocale.
 - **Modulare e additivo:** da MVP a produzione si *indurisce*, non si riscrive.
 - **Dominio-agnostico / tenant-ready:** listino = dati; motore prezzi dietro
   interfaccia; il tenant si risolve dal numero chiamato (Twilio `To`).
-- **Meno lavoro = max riuso dell'idraulica, IP propria nel backend.**
+- **Meno lavoro = max riuso dell'idraulica, IP propria.** Deploy a fine batch.
 
 ## Stack
 Python 3.13 + FastAPI · google-genai + Gemini Live API native-audio (Vertex AI) ·
@@ -25,58 +25,48 @@ Twilio (telefonia Media Streams + SMS) · audioop-lts (audio) · deploy su Cloud
 
 ## Architettura (cartelle)
 - `app/pricing/` — motore preventivi deterministico (interfaccia + pizzeria)
-- `app/tenancy/` — modello Tenant + registro/risoluzione dal numero chiamato
-- `app/agent/` — runtime: tool `calcola_preventivo`, system instruction, dispatch
-- `app/telephony/` — ponte Twilio↔Gemini Live (`bridge.py`, `audio.py`)
-- `app/delivery/` — consegna link (stub MVP → SMS/WhatsApp)
-- `app/platform/` — ganci produzione no-op (consent/logging/retention)
-- `app/main.py` — FastAPI: `/twiml`, WebSocket `/ws`, `/health`
-- `tenants/<id>/` — config per-tenant: `tenant.json` + `catalog.json` + `prompt.md`
-- `Dockerfile` + `.dockerignore` — deploy Cloud Run
-- `scripts/` — `smoke_live.py` (test Gemini), `set_twilio_webhook.py`
-- `tests/` — test del motore
+- `app/tenancy/` — Tenant + registro (risoluzione dal numero, build engine/delivery)
+- `app/agent/runtime.py` — tool (`calcola_preventivo`, `end_call`), system instruction, trigger, SMS format
+- `app/telephony/bridge.py` — ponte Twilio↔Gemini (audio, watchdog silenzio, chiusura, trascrizioni)
+- `app/delivery/` — consegna: `StubDelivery` / `SmsDelivery`
+- `app/main.py` — FastAPI: `/twiml` (+ from_number), WebSocket `/ws`, `/health`
+- `tenants/<id>/` — `tenant.json` + `catalog.json` (con categoria) + `prompt.md`
+- `Dockerfile` · `scripts/` (smoke_live, set_twilio_webhook) · `tests/`
 
 ## Roadmap
-1. ✅ Scaffold tenant-ready + motore prezzi pizzeria + test
+1. ✅ Scaffold tenant-ready + motore prezzi + test
 2. ✅ Idraulica: far squillare (Twilio Media Streams ↔ Gemini Live)
-3. ✅ Function calling: l'agente chiama `calcola_preventivo` verso il motore
-4. 🔄 Readback + gestione input ambigui (da raffinare/osservare sul campo)
-5. ⬜ Consegna link/riepilogo via SMS (ora è uno stub) → poi WhatsApp
-6. ✅ Primi test E2E: **chiamata reale funzionante**
-7. ⬜ Arricchire il listino pizzeria (varianti/aggiunte, formati, combo)
-8. ⬜ Riunione committente → tenant edilizia reale (listino + logica parametrica)
-9. ⬜ Produzione: migrare su GCP aziendale HQE (org policy via admin) + hardening
-   (errori, logging, sicurezza, multitenant pieno, billing aziendale)
+3. ✅ Function calling: `calcola_preventivo`
+4. ✅ Blocco A: saluto iniziale automatico + `end_call` con chiusura pulita
+5. ✅ Prompt robusto (gestione casi, anti-invenzione, readback) — iterativo
+6. ✅ Blocco B: timeout di silenzio (sollecito + congedo automatico)
+7. ✅ Blocco C: caller ID + SMS riepilogo a fine chiamata
+8. ✅ Blocco D: listino arricchito (bevande reali, dolci, combo) per categoria
+9. 🔄 Test conversazionali + tuning (VAD/barge-in #3, prompt sui casi reali)
+10. ⬜ Riunione committente (~22/6) → tenant edilizia reale (logica parametrica)
+11. ⬜ Produzione: GCP aziendale HQE (org policy via admin) + hardening + Secret Manager
 
 ## Stato attuale
-**Fase 2 COMPLETATA ✅ — la chiamata telefonica end-to-end funziona.**
-L'agente risponde su **+16892250454**, conversa in italiano (Gemini Live
-native-audio) e calcola i preventivi col motore deterministico.
+**MVP avanzato — feature complete, in fase di test conversazionale.**
+Chiamata E2E funzionante su **Cloud Run** (GCP personale `wizard-mvp-mc25`),
+revisione `00008`: `https://wizard-telefonico-699544336212.us-central1.run.app`.
+Numero: **+16892250454**.
 
-Deploy: **Cloud Run sul GCP personale** `wizard-mvp-mc25` →
-`https://wizard-telefonico-699544336212.us-central1.run.app` (us-central1),
-pubblico, webhook Twilio su `/twiml`.
-
-**Contesto:** gira sul GCP **personale** (test di sostenibilità). Per la produzione
-(azienda HQE) si replica lo stesso deploy sul GCP aziendale, sistemando la org policy
-`iam.allowedPolicyMemberDomains` con l'admin (vedi memoria `vincoli-rete-aziendale-gcp`).
-**Lezione appresa:** passare env multiple a gcloud da PowerShell — la virgola unisce
-gli argomenti in una sola stringa; settarle una alla volta o dallo shell sh.
+Attivi: saluto automatico, `end_call` prudente, prompt robusto anti-invenzione,
+timeout silenzio (watchdog), caller ID, SMS riepilogo, listino arricchito.
+Env su Cloud Run: `GOOGLE_CLOUD_PROJECT/LOCATION` + `TWILIO_*` (SMS; in prod → Secret Manager).
+**Diagnostica:** i log mostrano `UTENTE:`/`AGENTE:`/`TOOL CALL:` (trascrizioni) — usarli per il tuning.
 
 ## TODO (immediato)
-- [ ] `git push` dei commit locali su GitHub (diversi commit non ancora pushati)
-- [ ] Raffinare/osservare readback e gestione input ambigui in chiamata
-- [ ] Implementare consegna link/riepilogo via SMS (ora `StubDelivery`)
-- [ ] (Con l'utente) discutere le evoluzioni del prodotto
-- [ ] Produzione (post-riunione 22/6): replicare il deploy sul GCP aziendale HQE
+- [ ] Sessione di test conversazionali → annotare i casi falliti → tradurli in regole nel prompt
+- [ ] Tarare VAD/barge-in (#3) e soglie silenzio (`SILENCE_PROMPT_S`/`SILENCE_HANGUP_S`, via env) coi dati
+- [ ] `git push` dei commit locali su GitHub
+- [ ] Produzione (post-riunione): deploy su GCP aziendale HQE + Secret Manager per i segreti
 
 ## Come riprendere
-- **Servizio live:** Cloud Run `wizard-telefonico` (progetto `wizard-mvp-mc25`,
-  us-central1). Demo: chiamare +16892250454 (premere un tasto al messaggio trial).
-- **Re-deploy dopo modifiche:** dalla root →
-  `gcloud run deploy wizard-telefonico --source . --region us-central1 --allow-unauthenticated --timeout 3600`
-  (env già sulla revisione; per modificarle `--update-env-vars` UNA alla volta).
-- **Log:** `gcloud run services logs read wizard-telefonico --region us-central1 --project wizard-mvp-mc25 --limit 100`
+- **Servizio live:** Cloud Run `wizard-telefonico` (`wizard-mvp-mc25`, us-central1). Chiamare +16892250454.
+- **Re-deploy:** `gcloud run deploy wizard-telefonico --source . --region us-central1 --allow-unauthenticated --timeout 3600 --project wizard-mvp-mc25`
+  (env mantenute; per modificarle `--update-env-vars NOME=valore` — da PowerShell la virgola spezza gli argomenti, usare lo shell sh o una variabile per volta).
+- **Log con trascrizioni:** `gcloud run services logs read wizard-telefonico --region us-central1 --project wizard-mvp-mc25 --limit 150`
 - **Webhook Twilio:** `PYTHONPATH=. .venv/Scripts/python.exe scripts/set_twilio_webhook.py <https://host>`
-- **Smoke test Gemini:** `PYTHONPATH=. .venv/Scripts/python.exe scripts/smoke_live.py`
-- **Test motore:** `pytest -q`  ·  In locale usare la porta 8787 (la 8000 è occupata).
+- **Test motore (venv ha pytest):** `.venv/Scripts/python.exe -m pytest -q` · In locale usare porta 8787 (la 8000 è occupata).
