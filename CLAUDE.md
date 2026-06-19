@@ -42,16 +42,13 @@ WhatsApp) · Gemini Live API · deploy su Google Cloud Run.
 7. ⬜ Hardening produzione (errori, logging, sicurezza, multitenant pieno)
 
 ## Stato attuale
-**Fase 1 completata** (codice). Scaffold creato e **committato in locale**
-(git, branch `main`, commit iniziale `b517a7c`). Il motore prezzi pizzeria gira
-e supera i test (4/4) in locale, **senza** telefonia né Gemini.
-
-**In sospeso:** push su GitHub. La GitHub CLI (`gh`) non è installata e
-l'autenticazione richiede un'azione manuale dell'utente. Prossimo passo tecnico:
-Fase 2 (telefonia), che richiede config cloud (numero Twilio + Gemini abilitato).
+**Fase 1 completata.** Scaffold creato, committato (branch `main`) e **pushato su
+GitHub** (privato): https://github.com/MassimilianoSC/wizard-telefonico — remote
+`origin`. Il motore prezzi pizzeria gira e supera i test (4/4) in locale, **senza**
+telefonia né Gemini. Prossimo passo: Fase 2 (telefonia), che richiede config cloud
+(numero Twilio + Gemini abilitato).
 
 ## TODO (immediato)
-- [ ] Completare il versionamento remoto su GitHub (installare `gh` + auth, oppure repo + push)
 - [ ] Decidere se procedere con la config cloud (Twilio + Google Cloud) per la Fase 2
 - [ ] Clonare/adattare la demo Google "Gemini Live Telephony" in `app/telephony/`
 - [ ] Esporre un entrypoint FastAPI (`app/main.py`) col webhook Twilio
