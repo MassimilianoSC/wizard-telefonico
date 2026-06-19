@@ -1,14 +1,17 @@
 {
   "currency": "EUR",
   "items": [
-    {"code": "pizza_margherita", "name": "Pizza Margherita", "unit_price": 6.0, "aliases": ["margherita"]},
-    {"code": "pizza_marinara", "name": "Pizza Marinara", "unit_price": 5.5, "aliases": ["marinara"]},
-    {"code": "pizza_diavola", "name": "Pizza Diavola", "unit_price": 8.0, "aliases": ["diavola", "piccante"]},
-    {"code": "pizza_quattro_formaggi", "name": "Pizza Quattro Formaggi", "unit_price": 9.0, "aliases": ["quattro formaggi", "4 formaggi"]},
-    {"code": "pizza_capricciosa", "name": "Pizza Capricciosa", "unit_price": 9.5, "aliases": ["capricciosa"]},
-    {"code": "bibita_33cl", "name": "Bibita in lattina 33cl", "unit_price": 2.5, "aliases": ["bibita", "lattina", "coca", "cocacola", "aranciata"]},
-    {"code": "acqua_50cl", "name": "Acqua 50cl", "unit_price": 1.0, "aliases": ["acqua"]},
-    {"code": "birra_33cl", "name": "Birra 33cl", "unit_price": 3.5, "aliases": ["birra", "media"]},
-    {"code": "dolce_tiramisu", "name": "Tiramisù", "unit_price": 4.0, "aliases": ["tiramisu", "dolce"]}
+    {"code": "pizza_margherita", "name": "Pizza Margherita", "category": "Pizze", "unit_price": 6.0, "aliases": ["margherita"]},
+    {"code": "pizza_marinara", "name": "Pizza Marinara", "category": "Pizze", "unit_price": 5.5, "aliases": ["marinara"]},
+    {"code": "pizza_diavola", "name": "Pizza Diavola", "category": "Pizze", "unit_price": 8.0, "aliases": ["diavola", "piccante"]},
+    {"code": "pizza_quattro_formaggi", "name": "Pizza Quattro Formaggi", "category": "Pizze", "unit_price": 9.0, "aliases": ["quattro formaggi", "4 formaggi"]},
+    {"code": "pizza_capricciosa", "name": "Pizza Capricciosa", "category": "Pizze", "unit_price": 9.5, "aliases": ["capricciosa"]},
+    {"code": "pizza_prosciutto_funghi", "name": "Pizza Prosciutto e Funghi", "category": "Pizze", "unit_price": 9.0, "aliases": ["prosciutto e funghi", "prosciutto funghi", "prosciutto"]},
+    {"code": "coca_cola_33cl", "name": "Coca-Cola 33cl", "category": "Bevande", "unit_price": 2.5, "aliases": ["coca", "coca cola", "cocacola"]},
+    {"code": "fanta_33cl", "name": "Fanta 33cl", "category": "Bevande", "unit_price": 2.5, "aliases": ["fanta", "aranciata"]},
+    {"code": "acqua_50cl", "name": "Acqua naturale 50cl", "category": "Bevande", "unit_price": 1.0, "aliases": ["acqua", "acqua naturale"]},
+    {"code": "birra_33cl", "name": "Birra 33cl", "category": "Bevande", "unit_price": 3.5, "aliases": ["birra", "media"]},
+    {"code": "tiramisu", "name": "Tiramisù", "category": "Dolci", "unit_price": 4.0, "aliases": ["tiramisu", "dolce"]},
+    {"code": "menu_pizza_bibita", "name": "Menù Pizza Margherita + Bibita", "category": "Menù", "unit_price": 7.5, "aliases": ["menu", "menù", "combo", "menu pizza"]}
   ]
 }

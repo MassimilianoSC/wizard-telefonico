@@ -79,16 +79,24 @@ SILENCE_HANGUP_TRIGGER = (
 
 
 def build_system_instruction(tenant: Tenant, engine: PriceEngine) -> str:
-    """Prompt del tenant + elenco del listino coi codici validi per il tool."""
+    """Prompt del tenant + listino (raggruppato per categoria) coi codici validi."""
     base = tenant.prompt_path.read_text(encoding="utf-8")
-    righe = [
-        f"- {it['code']}: {it['name']} ({float(it['unit_price']):.2f} EUR)"
-        for it in engine.list_items()
-    ]
-    listino = "\n".join(righe)
+
+    by_category: dict[str, list[dict]] = {}
+    for item in engine.list_items():
+        by_category.setdefault(item.get("category", "Altro"), []).append(item)
+
+    sezioni = []
+    for categoria, voci in by_category.items():
+        righe = "\n".join(
+            f"- {it['code']}: {it['name']} ({float(it['unit_price']):.2f} EUR)" for it in voci
+        )
+        sezioni.append(f"### {categoria}\n{righe}")
+    listino = "\n".join(sezioni)
+
     return (
         f"{base}\n\n"
-        "## Listino disponibile\n"
+        "## Listino disponibile (è l'UNICO che puoi offrire)\n"
         "Usa ESATTAMENTE questi codici (`code`) quando chiami `calcola_preventivo`:\n"
         f"{listino}\n"
     )
