@@ -38,8 +38,11 @@ WhatsApp) · Gemini Live API · deploy su Google Cloud Run.
 3. ⬜ Function calling: l'agente chiama `quote` verso il listino finto
 4. ⬜ Readback + gestione input ambigui (via di fuga)
 5. ⬜ Consegna link via SMS (poi WhatsApp dopo verifica account)
-6. ⬜ Riunione committente → sostituire pizzeria con tenant edilizia reale
-7. ⬜ Hardening produzione (errori, logging, sicurezza, multitenant pieno)
+6. ⬜ Primi test E2E del giro completo (squillo → ordine → preventivo → link)
+7. ⬜ Arricchire il listino pizzeria di test: varianti/aggiunte, formati, combo
+   (stressa meccaniche vicine all'edilizia; additivo, non rompe l'E2E) — DOPO il punto 6
+8. ⬜ Riunione committente → sostituire pizzeria con tenant edilizia reale
+9. ⬜ Hardening produzione (errori, logging, sicurezza, multitenant pieno)
 
 ## Stato attuale
 **Fase 1 completata.** Scaffold creato, committato (branch `main`) e **pushato su
