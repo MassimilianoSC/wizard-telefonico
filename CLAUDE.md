@@ -50,12 +50,18 @@ WhatsApp) · Gemini Live API · deploy su Google Cloud Run.
 GitHub** (privato): https://github.com/MassimilianoSC/wizard-telefonico (remote
 `origin`). Test 4/4 verdi in locale.
 
-**Fase 2 in corso (config cloud).** Progetto GCP `wizard-telefonico` creato sotto
-org **hqe.it**, **Vertex AI API abilitata**. Billing = account personale dell'utente
-(carta propria): OK per l'MVP, **da spostare su billing aziendale in produzione**.
-Prossimi passi: account Twilio + numero di test, poi credenziali/codice telefonia.
+**Fase 2 in corso.** GCP: progetto `wizard-telefonico`, Vertex AI abilitata, billing
+personale (temporaneo). **Twilio: trial attivo, numero `+16892250454` (USA, Voice+SMS)
+agganciato al tenant pizzeria-demo, cellulare verificato, SID/Token nel `.env`.**
+gcloud installato; **ngrok e dipendenze Python da installare**. Demo ufficiale di
+riferimento individuata (vedi memoria `ref-demo-gemini-live-telephony`).
+Prossimo: cablare il ponte Twilio↔Gemini partendo dalla demo ufficiale Google.
 
-## TODO (immediato)
-- [ ] Decidere se procedere con la config cloud (Twilio + Google Cloud) per la Fase 2
-- [ ] Clonare/adattare la demo Google "Gemini Live Telephony" in `app/telephony/`
-- [ ] Esporre un entrypoint FastAPI (`app/main.py`) col webhook Twilio
+## TODO (immediato) — Fase 2: "far squillare"
+- [ ] Installare ngrok (+ authtoken di account gratuito)
+- [ ] `gcloud auth application-default login` + set-quota-project wizard-telefonico
+- [ ] Installare dipendenze Python (fastapi, uvicorn, twilio, google-genai, python-samplerate, websockets)
+- [ ] Portare la demo ufficiale "gemini-live-telephony-app" come base dell'idraulica
+- [ ] Avviare uvicorn + ngrok → puntare il webhook Twilio (`/twiml`) all'URL ngrok
+- [ ] Chiamare +16892250454 → l'agente risponde (numero che squilla, §7)
+- [ ] Poi: innestare il function calling verso il motore prezzi (nostro IP)
