@@ -1,6 +1,6 @@
 {
   "id": "pizzeria-demo",
-  "display_name": "Pizzeria Demo (listino finto MVP)",
+  "display_name": "Pizzeria di Jonny Spinello",
   "phone_number": "+16892250454",
   "engine_type": "pizzeria",
   "catalog_file": "catalog.json",
