@@ -1,7 +1,7 @@
 {
   "id": "pizzeria-demo",
   "display_name": "Pizzeria Demo (listino finto MVP)",
-  "phone_number": "+390000000000",
+  "phone_number": "+16892250454",
   "engine_type": "pizzeria",
   "catalog_file": "catalog.json",
   "prompt_file": "prompt.md",
