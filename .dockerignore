@@ -1,0 +1,11 @@
+# Escludi dal context di build (riduce upload e protegge i segreti)
+.venv/
+.git/
+.gitignore
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.env
+scripts/
+tests/
