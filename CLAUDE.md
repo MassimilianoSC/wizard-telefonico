@@ -20,60 +20,63 @@ Documento di riferimento completo: [piano-wizard-vocale.md](piano-wizard-vocale.
 - **Meno lavoro = max riuso dell'idraulica, IP propria nel backend.**
 
 ## Stack
-Python 3.12 + FastAPI · google-genai + ADK (voce) · Twilio (telefonia + SMS/
-WhatsApp) · Gemini Live API · deploy su Google Cloud Run.
+Python 3.13 + FastAPI · google-genai + Gemini Live API native-audio (Vertex AI) ·
+Twilio (telefonia Media Streams + SMS) · audioop-lts (audio) · deploy su Cloud Run.
 
 ## Architettura (cartelle)
 - `app/pricing/` — motore preventivi deterministico (interfaccia + pizzeria)
 - `app/tenancy/` — modello Tenant + registro/risoluzione dal numero chiamato
+- `app/agent/` — runtime: tool `calcola_preventivo`, system instruction, dispatch
+- `app/telephony/` — ponte Twilio↔Gemini Live (`bridge.py`, `audio.py`)
 - `app/delivery/` — consegna link (stub MVP → SMS/WhatsApp)
 - `app/platform/` — ganci produzione no-op (consent/logging/retention)
-- `app/telephony/` — idraulica Twilio↔Gemini (placeholder, dalla demo Google)
+- `app/main.py` — FastAPI: `/twiml`, WebSocket `/ws`, `/health`
 - `tenants/<id>/` — config per-tenant: `tenant.json` + `catalog.json` + `prompt.md`
+- `Dockerfile` + `.dockerignore` — deploy Cloud Run
+- `scripts/` — `smoke_live.py` (test Gemini), `set_twilio_webhook.py`
 - `tests/` — test del motore
 
-## Roadmap (ordine di montaggio, §7-§8 del piano)
-1. ✅ Scaffold tenant-ready + motore prezzi pizzeria + test (no telefonia)
-2. ⬜ Idraulica: far squillare un numero (demo Google Twilio+Gemini)
-3. ⬜ Function calling: l'agente chiama `quote` verso il listino finto
-4. ⬜ Readback + gestione input ambigui (via di fuga)
-5. ⬜ Consegna link via SMS (poi WhatsApp dopo verifica account)
-6. ⬜ Primi test E2E del giro completo (squillo → ordine → preventivo → link)
-7. ⬜ Arricchire il listino pizzeria di test: varianti/aggiunte, formati, combo
-   (stressa meccaniche vicine all'edilizia; additivo, non rompe l'E2E) — DOPO il punto 6
-8. ⬜ Riunione committente → sostituire pizzeria con tenant edilizia reale
-9. ⬜ Hardening produzione (errori, logging, sicurezza, multitenant pieno,
-   billing su account aziendale)
+## Roadmap
+1. ✅ Scaffold tenant-ready + motore prezzi pizzeria + test
+2. ✅ Idraulica: far squillare (Twilio Media Streams ↔ Gemini Live)
+3. ✅ Function calling: l'agente chiama `calcola_preventivo` verso il motore
+4. 🔄 Readback + gestione input ambigui (da raffinare/osservare sul campo)
+5. ⬜ Consegna link/riepilogo via SMS (ora è uno stub) → poi WhatsApp
+6. ✅ Primi test E2E: **chiamata reale funzionante**
+7. ⬜ Arricchire il listino pizzeria (varianti/aggiunte, formati, combo)
+8. ⬜ Riunione committente → tenant edilizia reale (listino + logica parametrica)
+9. ⬜ Produzione: migrare su GCP aziendale HQE (org policy via admin) + hardening
+   (errori, logging, sicurezza, multitenant pieno, billing aziendale)
 
 ## Stato attuale
-**Fase 1 completata.** Scaffold + motore prezzi pizzeria, committato e **pushato su
-GitHub** (privato): https://github.com/MassimilianoSC/wizard-telefonico (remote
-`origin`). Test 4/4 verdi in locale.
+**Fase 2 COMPLETATA ✅ — la chiamata telefonica end-to-end funziona.**
+L'agente risponde su **+16892250454**, conversa in italiano (Gemini Live
+native-audio) e calcola i preventivi col motore deterministico.
 
-**Fase 2 — codice completo e deployato; manca solo l'accesso pubblico.**
-Ponte Twilio↔Gemini scritto e validato (motore 4/4, smoke test Gemini Live OK).
-App **deployata su Cloud Run**: `https://wizard-telefonico-850927676767.us-central1.run.app`
-(region us-central1). Twilio: trial, numero `+16892250454`, SID/Token nel `.env`.
+Deploy: **Cloud Run sul GCP personale** `wizard-mvp-mc25` →
+`https://wizard-telefonico-699544336212.us-central1.run.app` (us-central1),
+pubblico, webhook Twilio su `/twiml`.
 
-**Blocco (amministrativo, non tecnico):** la org policy aziendale (Domain Restricted
-Sharing) vieta `allUsers` → il servizio risponde 403 agli anonimi, quindi Twilio non
-lo raggiunge. Anche i quick tunnel Cloudflare non instradano dalla rete aziendale
-(vedi memoria `vincoli-rete-aziendale-gcp`).
+**Contesto:** gira sul GCP **personale** (test di sostenibilità). Per la produzione
+(azienda HQE) si replica lo stesso deploy sul GCP aziendale, sistemando la org policy
+`iam.allowedPolicyMemberDomains` con l'admin (vedi memoria `vincoli-rete-aziendale-gcp`).
+**Lezione appresa:** passare env multiple a gcloud da PowerShell — la virgola unisce
+gli argomenti in una sola stringa; settarle una alla volta o dallo shell sh.
 
-**Per sbloccare:** admin GCP che consenta `allUsers` (run.invoker) / eccezione alla
-policy (soluzione di produzione), oppure rete non aziendale (hotspot) + tunnel per i
-test. Test telefonico end-to-end ancora da fare.
+## TODO (immediato)
+- [ ] `git push` dei commit locali su GitHub (diversi commit non ancora pushati)
+- [ ] Raffinare/osservare readback e gestione input ambigui in chiamata
+- [ ] Implementare consegna link/riepilogo via SMS (ora `StubDelivery`)
+- [ ] (Con l'utente) discutere le evoluzioni del prodotto
+- [ ] Produzione (post-riunione 22/6): replicare il deploy sul GCP aziendale HQE
 
-## TODO (immediato) — sbloccare l'accesso pubblico, poi testare
-- [ ] **Admin GCP**: eccezione alla org policy `iam.allowedPolicyMemberDomains`
-      per consentire `allUsers` con ruolo `run.invoker` sul servizio `wizard-telefonico`
-      (oppure l'admin esegue il binding). → rende pubblico l'endpoint per Twilio.
-- [ ] In alternativa, per test immediati: rete non aziendale (hotspot) + tunnel.
-- [ ] Test telefonico E2E: chiamare +16892250454 → agente pizzeria → ordine → totale.
-- [ ] Verificare function calling/readback, poi consegna link via SMS.
-
-## Come riprendere (servizi locali)
-- Server locale per i test via tunnel: `PYTHONPATH=. .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8787`
-  (la porta 8000 è occupata da un altro programma dell'utente → usare 8787).
-- Webhook Twilio: `PYTHONPATH=. .venv/Scripts/python.exe scripts/set_twilio_webhook.py <https://host>`
-- Smoke test Gemini: `PYTHONPATH=. .venv/Scripts/python.exe scripts/smoke_live.py`
+## Come riprendere
+- **Servizio live:** Cloud Run `wizard-telefonico` (progetto `wizard-mvp-mc25`,
+  us-central1). Demo: chiamare +16892250454 (premere un tasto al messaggio trial).
+- **Re-deploy dopo modifiche:** dalla root →
+  `gcloud run deploy wizard-telefonico --source . --region us-central1 --allow-unauthenticated --timeout 3600`
+  (env già sulla revisione; per modificarle `--update-env-vars` UNA alla volta).
+- **Log:** `gcloud run services logs read wizard-telefonico --region us-central1 --project wizard-mvp-mc25 --limit 100`
+- **Webhook Twilio:** `PYTHONPATH=. .venv/Scripts/python.exe scripts/set_twilio_webhook.py <https://host>`
+- **Smoke test Gemini:** `PYTHONPATH=. .venv/Scripts/python.exe scripts/smoke_live.py`
+- **Test motore:** `pytest -q`  ·  In locale usare la porta 8787 (la 8000 è occupata).
