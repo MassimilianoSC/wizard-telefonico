@@ -53,8 +53,9 @@ Twilio (telefonia Media Streams + SMS) · audioop-lts (audio) · deploy su Cloud
 
 ## 6. Stato attuale (dove siamo)
 **MVP avanzato, funzionante e in test.** Chiamata E2E completa su **Cloud Run**
-(GCP **personale** `wizard-mvp-mc25`), **revisione `00009`**:
-`https://wizard-telefonico-699544336212.us-central1.run.app` · Numero **+16892250454**.
+(GCP **personale** `wizard-mvp-mc25`), region **`europe-west8` (Milano)** dal 21/6/2026:
+`https://wizard-telefonico-699544336212.europe-west8.run.app` · Numero **+16892250454**.
+(Vecchio servizio `us-central1` — `https://wizard-telefonico-eydiobgqqq-uc.a.run.app` — spento dal traffico, resta come rollback.)
 
 Ultima sessione: applicati e **validati dai log** i fix conversazionali —
 watchdog che non interrompe più durante le elaborazioni, anti-stallo (niente più
@@ -63,6 +64,13 @@ normali (1-3 voci) filano; readback, totale, SMS e chiusura funzionano. SMS
 **verificato** (arriva). Latenza US↔IT ~1-2s, accettabile.
 Env su Cloud Run: `GOOGLE_CLOUD_PROJECT/LOCATION` + `TWILIO_*`.
 **Diagnostica:** i log mostrano `UTENTE:`/`AGENTE:`/`TOOL CALL:`/`Silenzio`/`Stallo` — usarli per il tuning.
+
+**Aggiornamento 21/6/2026 — spostamento in EU:** Cloud Run + Vertex/Gemini spostati in **`europe-west8`
+(Milano)** (URL sopra; webhook Twilio ripuntato; env copiate dal servizio US senza esporre i segreti).
+**Smoke test E2E passato**: chiamata → conversazione → calcolo → SMS (201) → chiusura, tutta da Milano,
+nessun errore di region. Disponibilità native-audio in EU **verificata** (memoria `native-audio-eu-disponibile`,
+script `probe_live_region.py`). I test conversazionali "seri" in EU restano per la prossima sessione
+(problemi P1 noti, indipendenti dalla region: es. ~8s di stallo prima del readback a fine ordine).
 
 ## 7. TODO (immediato)
 - [ ] Continuare i test conversazionali → annotare i casi falliti → regole nel prompt
@@ -82,8 +90,9 @@ Env su Cloud Run: `GOOGLE_CLOUD_PROJECT/LOCATION` + `TWILIO_*`.
   della terminologia edile regionale (§4.3 piano).
 - **Tuning VAD avanzato** (`RealtimeInputConfig.automatic_activity_detection`: sensitivity,
   silence_duration) se il barge-in/timing va affinato.
-- **Latenza:** Gemini Live native-audio è solo in `us-central1`; per l'Italia resta un
-  fondo fisiologico. Valutare opzioni region/modello in futuro.
+- **Latenza:** *(superato 21/6)* il native-audio (GA) **è servito anche da `europe-west8`** e il
+  servizio è stato spostato lì. Il fondo residuo dipende ora dal **numero USA** (edge Twilio US):
+  si ridurrà col numero italiano (Regulatory Bundle in corso, memoria `twilio-bundle-numero-italiano`).
 
 ## 9. Note operative (cose da sapere / trappole già incontrate)
 - **Twilio trial:** max **5 SMS/giorno** (oltre → HTTP 429, error 63038) e messaggio
@@ -99,9 +108,10 @@ Env su Cloud Run: `GOOGLE_CLOUD_PROJECT/LOCATION` + `TWILIO_*`.
 - **Segreti:** ora `TWILIO_*` sono env su Cloud Run; in produzione → **Secret Manager**.
 
 ## 10. Come riprendere (comandi)
-- **Servizio live:** Cloud Run `wizard-telefonico` (`wizard-mvp-mc25`, us-central1). Chiamare +16892250454.
-- **Re-deploy:** `gcloud run deploy wizard-telefonico --source . --region us-central1 --allow-unauthenticated --timeout 3600 --project wizard-mvp-mc25` (env mantenute).
-- **Log con trascrizioni:** `gcloud run services logs read wizard-telefonico --region us-central1 --project wizard-mvp-mc25 --limit 150`
+- **Servizio live:** Cloud Run `wizard-telefonico` (`wizard-mvp-mc25`, **`europe-west8`** dal 21/6). Chiamare +16892250454.
+- **Re-deploy:** `gcloud run deploy wizard-telefonico --source . --region europe-west8 --allow-unauthenticated --timeout 3600 --project wizard-mvp-mc25` (env mantenute).
+- **Log con trascrizioni:** `gcloud run services logs read wizard-telefonico --region europe-west8 --project wizard-mvp-mc25 --limit 150`
+- **Rollback su us-central1:** `PYTHONPATH=. .venv/Scripts/python.exe scripts/set_twilio_webhook.py https://wizard-telefonico-eydiobgqqq-uc.a.run.app`
 - **Webhook Twilio (se cambia l'host):** `PYTHONPATH=. .venv/Scripts/python.exe scripts/set_twilio_webhook.py <https://host>`
 - **Smoke test Gemini:** `PYTHONPATH=. .venv/Scripts/python.exe scripts/smoke_live.py`
 - **Test motore:** `.venv/Scripts/python.exe -m pytest -q`
@@ -110,4 +120,5 @@ Env su Cloud Run: `GOOGLE_CLOUD_PROJECT/LOCATION` + `TWILIO_*`.
 principio-riuso-ip · stack-python-deciso · mvp-pizzeria-pre-riunione ·
 multitenancy-tenant-ready · documentazione-stato-progetto · workflow-quando-serve ·
 deploy-a-fine-batch · ref-demo-gemini-live-telephony · vincoli-rete-aziendale-gcp ·
-guardrail-produzione
+guardrail-produzione · diagnosi-da-log-prima-di-modificare · doc-ufficiale-gemini-live ·
+native-audio-eu-disponibile · twilio-bundle-numero-italiano
