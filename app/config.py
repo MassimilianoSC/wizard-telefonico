@@ -49,4 +49,12 @@ GEMINI_OUT_RATE = 24000  # PCM16 prodotto da Gemini in uscita
 # --- Timeout di silenzio e anti-stallo (secondi) — tarabili via env ---
 SILENCE_PROMPT_S = float(os.getenv("SILENCE_PROMPT_S", "16"))   # sollecito se il CLIENTE tace (dopo che l'agente ha finito)
 SILENCE_HANGUP_S = float(os.getenv("SILENCE_HANGUP_S", "30"))   # chiusura dopo ulteriore silenzio
-STALL_NUDGE_S = float(os.getenv("STALL_NUDGE_S", "9"))          # nudge se l'AGENTE non risponde dopo che il cliente ha parlato
+STALL_NUDGE_S = float(os.getenv("STALL_NUDGE_S", "6"))          # nudge se l'AGENTE non risponde dopo che il cliente ha parlato (rete anti-stallo fine-turno; era 9)
+
+# --- VAD: automatic_activity_detection (rilevazione fine-turno utente) — tarabili via env ---
+# silence_duration_ms: silenzio RILEVATO prima di chiudere il turno utente.
+#   Default server ~800ms; consigliato 500-800. Più basso = chiude prima (ma rischio di spezzare frasi).
+VAD_SILENCE_MS = int(os.getenv("VAD_SILENCE_MS", "500"))
+# prefix_padding_ms: audio incluso PRIMA che lo speech sia rilevato (evita di tagliare l'inizio delle parole in ingresso).
+#   Default native-audio = 0 (taglia gli attacchi); 100 = compromesso prudente.
+VAD_PREFIX_PADDING_MS = int(os.getenv("VAD_PREFIX_PADDING_MS", "100"))

@@ -37,6 +37,8 @@ from app.config import (
     SILENCE_PROMPT_S,
     STALL_NUDGE_S,
     TWILIO_RATE,
+    VAD_PREFIX_PADDING_MS,
+    VAD_SILENCE_MS,
     DEFAULT_TENANT_ID,
 )
 from app.agent.runtime import (
@@ -74,6 +76,17 @@ def _live_config(system_instruction: str) -> types.LiveConnectConfig:
         tools=[{"function_declarations": TOOLS}],
         input_audio_transcription=types.AudioTranscriptionConfig(),
         output_audio_transcription=types.AudioTranscriptionConfig(),
+        # Rilevazione fine-turno resa ESPLICITA: il default puro lasciava l'agente
+        # appeso su frasi brevi di chiusura ("No, va bene così") finche' un nuovo
+        # audio non rimetteva in moto il VAD (cfr. issue live-api #142 + comfort-noise PSTN).
+        realtime_input_config=types.RealtimeInputConfig(
+            automatic_activity_detection=types.AutomaticActivityDetection(
+                disabled=False,
+                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
+                silence_duration_ms=VAD_SILENCE_MS,
+                prefix_padding_ms=VAD_PREFIX_PADDING_MS,
+            )
+        ),
     )
 
 
