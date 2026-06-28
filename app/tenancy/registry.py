@@ -30,7 +30,9 @@ def _load_all() -> dict[str, Tenant]:
         tenant = Tenant(
             id=data["id"],
             display_name=data["display_name"],
-            phone_number=data["phone_number"],
+            # Accetta sia `phone_numbers` (lista) sia `phone_number` (singolo, retrocompat).
+            phone_numbers=data.get("phone_numbers")
+            or ([data["phone_number"]] if data.get("phone_number") else []),
             engine_type=data["engine_type"],
             catalog_path=tenant_dir / data["catalog_file"],
             prompt_path=tenant_dir / data["prompt_file"],
@@ -56,7 +58,7 @@ def resolve(to_number: str | None = None) -> Tenant:
     tenants = _load_all()
     if to_number:
         for tenant in tenants.values():
-            if tenant.phone_number == to_number:
+            if to_number in tenant.phone_numbers:
                 return tenant
     return get_tenant(DEFAULT_TENANT_ID)
 

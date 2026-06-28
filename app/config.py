@@ -27,6 +27,10 @@ DEFAULT_CURRENCY = "EUR"
 # --- Twilio (per l'invio SMS; su Cloud Run vanno passati come env/segreti) ---
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+# MITTENTE degli SMS in uscita: deve essere un numero abilitato all'invio SMS
+# (il numero USA). NON è il numero di ingresso voce — quelli stanno nei
+# tenants/<id>/tenant.json (`phone_numbers`) e possono essere geografici IT,
+# che NON inviano SMS. Tenere i due ruoli SEPARATI: confonderli rompe l'SMS.
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "")
 
 # --- Google / Gemini (Vertex AI) ---

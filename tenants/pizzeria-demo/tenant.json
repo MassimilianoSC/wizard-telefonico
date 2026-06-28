@@ -1,7 +1,7 @@
 {
   "id": "pizzeria-demo",
   "display_name": "Pizzeria di Jonny Spinello",
-  "phone_number": "+16892250454",
+  "phone_numbers": ["+16892250454", "+390250074071"],
   "engine_type": "pizzeria",
   "catalog_file": "catalog.json",
   "prompt_file": "prompt.md",

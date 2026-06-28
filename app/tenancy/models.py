@@ -14,7 +14,7 @@ from pathlib import Path
 class Tenant:
     id: str
     display_name: str
-    phone_number: str          # numero chiamato (Twilio "To") che identifica il tenant
+    phone_numbers: list[str]   # numeri chiamati (Twilio "To") che identificano il tenant (uno o più)
     engine_type: str           # quale motore prezzi usare: "pizzeria", "edilizia", ...
     catalog_path: Path         # file del listino
     prompt_path: Path          # file del prompt del wizard
