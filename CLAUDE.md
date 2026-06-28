@@ -96,6 +96,12 @@ script `probe_live_region.py`). I test conversazionali "seri" in EU restano per 
   usare le righe `EV`** (i log "vecchi" NON erano affidabili sull'ordine). Sblocca i test di timing del Gruppo B.
 - **Sintomi conversazionali ancora aperti** (da fix in batch): doppio `end_call`→doppio SMS (intermittente);
   annuncio riepilogo/SMS "a vuoto" quando non c'è ordine. Vedi `piano-operativo.md` (Gruppi A/B).
+- **Twilio Voice region del numero IT — tentativo IE1 (Irlanda) FALLITO, rollback a US1:** spostare lo
+  smistamento chiamate del numero IT su **IE1** ha reso il numero **irraggiungibile da rete italiana**
+  ("numero non corretto"). **Rollback a US1 → funziona.** Causa **non determinata con certezza**. La
+  region IT **resta su US1**. La latenza ~0,36s è già ottima così (criterio: 0,36s va benissimo, anche
+  più alta). In futuro si potrà **riprovare IE1** verificando con cura la **config per-region** prima di
+  attivare (vedi nota §9).
 
 ## 7. TODO (immediato)
 > Piano completo e ordinato **per gruppi** (con test di esistenza per ogni voce): **`piano-operativo.md`**.
@@ -126,6 +132,10 @@ script `probe_live_region.py`). I test conversazionali "seri" in EU restano per 
 ## 9. Note operative (cose da sapere / trappole già incontrate)
 - **Twilio trial:** max **5 SMS/giorno** (oltre → HTTP 429, error 63038) e messaggio
   "press any key" a ogni chiamata. Un piccolo **upgrade** li rimuove entrambi.
+- **Twilio Voice region del numero IT = US1 (non IE1):** spostare la region di smistamento del numero
+  IT su **IE1 (Irlanda)** lo ha reso **irraggiungibile da rete italiana** ("numero non corretto");
+  **rollback a US1** ha ripristinato. Causa non certa (probabile config per-region da rivedere).
+  Tenere **US1**. Riprovare IE1 solo verificando bene la configurazione per-region prima di attivare.
 - **Produzione bloccata dall'org aziendale:** org policy `iam.allowedPolicyMemberDomains`
   vieta `allUsers` → Cloud Run pubblico solo con eccezione dell'admin (memoria `vincoli-rete-aziendale-gcp`).
   Per questo l'MVP gira sul **GCP personale**. Billing = carta personale (temporaneo).
