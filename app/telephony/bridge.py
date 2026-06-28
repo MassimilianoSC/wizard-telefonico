@@ -133,6 +133,14 @@ async def run_bridge(twilio_ws) -> None:
     nudged = False                       # nudge anti-stallo già inviato in questo turno
     prompted_silence = False             # sollecito di silenzio già inviato
     last_quote: dict | None = None       # ultimo preventivo calcolato, per l'SMS
+    t0 = time.monotonic()                # riferimento per i timestamp relativi degli eventi
+
+    def ev(msg: str) -> None:
+        """Logga un evento NELL'ISTANTE in cui accade → ordine e timing affidabili.
+        Le righe `UTENTE:`/`AGENTE:` complete restano a fine turno solo come riepilogo
+        del CONTENUTO: NON usarle per dedurre l'ordine degli eventi (escono insieme,
+        in ordine prefissato, a `turn_complete`). Per ordine/timing usare le righe `EV`."""
+        log.info("EV +%6.2fs %s", time.monotonic() - t0, msg)
 
     async with _client.aio.live.connect(model=GEMINI_MODEL, config=config) as session:
         await _send_trigger(session, GREETING_TRIGGER)
@@ -167,6 +175,7 @@ async def run_bridge(twilio_ws) -> None:
                         for fc in tool_call.function_calls:
                             args = dict(fc.args or {})
                             log.info("TOOL CALL: %s(%s)", fc.name, args)
+                            ev("tool: %s" % fc.name)
                             result = dispatch_tool_call(fc.name, args, engine)
                             if fc.name == "calcola_preventivo" and "total" in result:
                                 last_quote = result
@@ -188,7 +197,11 @@ async def run_bridge(twilio_ws) -> None:
                         continue
 
                     if getattr(response, "data", None):
+                        if awaiting_agent:
+                            ev("agente: prima risposta (%.2fs dopo l'utente)"
+                               % (time.monotonic() - last_user_speech))
                         last_activity = time.monotonic()
+                        awaiting_agent = False   # l'agente sta emettendo audio: il suo turno e' partito
                         ulaw = pcm16_to_ulaw(down.process(response.data))
                         await twilio_ws.send_text(
                             json.dumps(
@@ -204,6 +217,8 @@ async def run_bridge(twilio_ws) -> None:
                     if server_content:
                         it = getattr(server_content, "input_transcription", None)
                         if it and getattr(it, "text", None):
+                            if not user_parts:
+                                ev("utente: inizio parlato")
                             user_parts.append(it.text)
                             now = time.monotonic()
                             last_activity = now
@@ -213,22 +228,32 @@ async def run_bridge(twilio_ws) -> None:
                             prompted_silence = False
                         ot = getattr(server_content, "output_transcription", None)
                         if ot and getattr(ot, "text", None):
+                            if awaiting_agent:
+                                ev("agente: prima risposta (%.2fs dopo l'utente)"
+                                   % (time.monotonic() - last_user_speech))
                             agent_parts.append(ot.text)
                             last_activity = time.monotonic()
+                            awaiting_agent = False   # l'agente ha prodotto output: non e' piu' "muto"
 
                         if getattr(server_content, "interrupted", False):
+                            ev("barge-in: l'utente interrompe l'agente")
                             await twilio_ws.send_text(
                                 json.dumps({"event": "clear", "streamSid": stream_sid})
                             )
 
                         if getattr(server_content, "turn_complete", False):
+                            ev("--- fine turno ---")
                             if user_parts:
                                 log.info("UTENTE: %s", "".join(user_parts).strip())
                             if agent_parts:
                                 log.info("AGENTE: %s", "".join(agent_parts).strip())
                             user_parts.clear()
                             agent_parts.clear()
-                            awaiting_agent = False   # l'agente ha completato la risposta
+                            # awaiting_agent NON si resetta qui: turn_complete puo' arrivare
+                            # col turno utente chiuso ma SENZA output dell'agente (agente
+                            # piantato dopo la conferma). Il reset avviene sull'output reale
+                            # dell'agente (response.data / output_transcription), cosi' il
+                            # watchdog puo' fare il nudge a 6s invece di lasciarlo appeso.
                             if closing and not goodbye_sent:
                                 goodbye_sent = True
                                 await twilio_ws.send_text(
