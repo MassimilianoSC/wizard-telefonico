@@ -54,7 +54,7 @@ Twilio (telefonia Media Streams + SMS) · audioop-lts (audio) · deploy su Cloud
 ## 6. Stato attuale (dove siamo)
 **MVP avanzato, funzionante e in test.** Chiamata E2E completa su **Cloud Run**
 (GCP **personale** `wizard-mvp-mc25`), region **`europe-west8` (Milano)** dal 21/6/2026:
-`https://wizard-telefonico-699544336212.europe-west8.run.app` · Numero **+16892250454**.
+`https://wizard-telefonico-699544336212.europe-west8.run.app` · Numeri **+390250074071 (IT, voce)** e **+16892250454 (USA, mittente SMS + rollback)**.
 (Vecchio servizio `us-central1` — `https://wizard-telefonico-eydiobgqqq-uc.a.run.app` — spento dal traffico, resta come rollback.)
 
 Ultima sessione: applicati e **validati dai log** i fix conversazionali —
@@ -72,12 +72,41 @@ nessun errore di region. Disponibilità native-audio in EU **verificata** (memor
 script `probe_live_region.py`). I test conversazionali "seri" in EU restano per la prossima sessione
 (problemi P1 noti, indipendenti dalla region: es. ~8s di stallo prima del readback a fine ordine).
 
+**Aggiornamento 22/6/2026 (lun) — fix turn-taking** (diagnosi dai log → fix mirato → deploy):
+- **VAD esplicito** (`realtime_input_config.automatic_activity_detection`: `END_SENSITIVITY_HIGH`,
+  `silence_duration_ms`/`prefix_padding_ms` via env) + **`STALL_NUDGE_S` 9→6**: il turno utente ora si
+  chiude da solo (niente più "Pronto?" per sbloccare). **Validato dai log.**
+- **Fix `awaiting_agent`** (revision `00003-bzl`): il reset avviene sull'output reale dell'agente, non
+  più su `turn_complete` → l'agente piantato *dopo la conferma* è risvegliato dal nudge a 6s invece di
+  restare appeso. **Deployato, in attesa di validazione** col test.
+- Sospetto ambientale: i test mattutini erano all'esterno (rumoroso) → il brusio può amplificare i
+  problemi di turn-taking; ri-testare in ambiente silenzioso per isolare causa upstream (VAD) vs rete (watchdog).
+- **Piano dei lavori rimanenti** (gruppi A–F, con test di esistenza): vedi `piano-operativo.md`.
+
+**Aggiornamento 28/6/2026 (dom) — numero IT + strumentazione log** (revision `00005-dv2`):
+- **Numero italiano attivo e integrato:** `+390250074071` (solo-Voce in ingresso). Il modello `Tenant`
+  ora supporta **più numeri** (`phone_numbers: list[str]`, retrocompatibile); `resolve()` matcha sulla
+  lista. `pizzeria-demo` ha due numeri di ingresso (USA + IT). **Ruoli separati:** IT = voce in ingresso,
+  **USA (`TWILIO_PHONE_NUMBER`) = mittente SMS** (il numero IT non invia SMS). Vedi memoria `twilio-bundle-numero-italiano`.
+- **Catena tutta-EU validata E2E** sul numero IT: routing esplicito → ordine → calcolo → SMS (da USA) → chiusura.
+  **Latenza utente→agente ~0,36s mediana** (misurata), contro ~1-2s del numero USA.
+- **Strumentazione log (`EV`)**: ogni evento è loggato NELL'ISTANTE reale (`utente: inizio parlato`,
+  `agente: prima risposta (Ns dopo l'utente)`, `tool:`, `barge-in`, `--- fine turno ---`). Le righe
+  `UTENTE:`/`AGENTE:` restano come riepilogo del CONTENUTO ma escono a `turn_complete`: per **ordine/timing
+  usare le righe `EV`** (i log "vecchi" NON erano affidabili sull'ordine). Sblocca i test di timing del Gruppo B.
+- **Sintomi conversazionali ancora aperti** (da fix in batch): doppio `end_call`→doppio SMS (intermittente);
+  annuncio riepilogo/SMS "a vuoto" quando non c'è ordine. Vedi `piano-operativo.md` (Gruppi A/B).
+
 ## 7. TODO (immediato)
-- [ ] Continuare i test conversazionali → annotare i casi falliti → regole nel prompt
-- [ ] Tarare, coi dati, soglie silenzio/stallo (`SILENCE_PROMPT_S`/`SILENCE_HANGUP_S`/`STALL_NUDGE_S`, via env) ed eventuale VAD
-- [ ] `git push` dei commit locali su GitHub (parecchi in coda)
-- [ ] Preparare il tenant **edilizia** dopo la riunione (listino reale + logica parametrica/forbice)
-- [ ] Produzione: deploy su GCP aziendale HQE + Secret Manager + guardrail (vedi §8)
+> Piano completo e ordinato **per gruppi** (con test di esistenza per ogni voce): **`piano-operativo.md`**.
+- [ ] **Validare il fix `awaiting_agent`** (rev `00003-bzl`) con un test in ambiente *silenzioso*: ordina → conferma → l'agente riparte da solo entro ~6s? (nei log cercare `Stallo agente … nudge`)
+- [ ] **Gruppo A — `prompt.md`** (un file, un deploy): totale anticipato, "annuncio SMS a vuoto", coerenza quantità, "chiedi-non-indovinare", readback non saltabile
+- [ ] **Gruppo C — `voci` malformate** a `calcola_preventivo` (bug offline, test deterministico)
+- [ ] **Gruppo B — turn-taking/audio**: prima la *strumentazione* (misura), poi tarature `VAD_SILENCE_MS`/`SILENCE_PROMPT_S`, troncamento saluto, doppio `end_call`
+- [ ] **Gruppo D — hardening**: Secret Manager, firma webhook, rate limit, cold start, tetto durata, riconnessione WS, recupero lead, osservabilità
+- [ ] **Gruppo E — valore committente**: notifica lead, cruscotto/storico, CRM GoHighLevel, link preventivo, WhatsApp
+- [ ] **Gruppo F — tenant edilizia** (dopo la spina dorsale conversazionale): motore parametrico + fuzzy-match listino
+- [ ] Produzione: GCP aziendale HQE (org policy via admin) — vedi §8 e memoria `vincoli-rete-aziendale-gcp`
 
 ## 8. Possibili miglioramenti / backlog (già discussi)
 - **Guardrail di produzione** (memoria `guardrail-produzione`): totale detto = calcolato;
